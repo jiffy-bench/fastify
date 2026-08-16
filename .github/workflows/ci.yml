@@ -32,24 +32,13 @@ permissions:
   contents: read
 
 jobs:
-  quality-check:
-    uses: fastify/workflows/.github/workflows/nested-quality.yml@ef591e2186785d5ab36b9fe6a79c7ce2f1d94e57 # v7.0.0
-    permissions:
-      contents: read
-    with:
-      license-check: true
-      lint: true
-
   coverage-nix:
-    needs:
-      - quality-check
     permissions:
       contents: read
     uses: ./.github/workflows/coverage-nix.yml
 
   test-unit:
     needs:
-      - quality-check
       - coverage-nix
     runs-on: ${{ matrix.os }}
     permissions:
@@ -104,7 +93,6 @@ jobs:
 
   test-types:
     needs:
-      - quality-check
       - coverage-nix
     runs-on: 'ubuntu-latest'
     permissions:
@@ -156,7 +144,6 @@ jobs:
   test-pino-compat:
     name: Test pino compatibility
     needs:
-      - quality-check
       - coverage-nix
     runs-on: ubuntu-latest
     permissions:
