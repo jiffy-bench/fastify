@@ -99,7 +99,7 @@ jobs:
           fi
       - name: Tensile selection (shadow)
         id: tensile
-        uses: rsyed94/tensile-action@a64eb2feaf04f8407498065120422e6ff30d33a4
+        uses: rsyed94/tensile-action@6b066ae7ea7bb376b7049fb7ef952b0fde0ba336
         continue-on-error: true
         with:
           phase: select
@@ -115,7 +115,7 @@ jobs:
         id: tensile-record
         if: ${{ github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (matrix.node-version == 24) }}
         continue-on-error: true
-        uses: rsyed94/tensile-action/node-test@a64eb2feaf04f8407498065120422e6ff30d33a4
+        uses: rsyed94/tensile-action/node-test@6b066ae7ea7bb376b7049fb7ef952b0fde0ba336
         with:
           step: setup
       - name: Run tests
@@ -126,7 +126,7 @@ jobs:
       - name: Tensile node:test collect
         if: ${{ !cancelled() && steps.tensile-record.outcome == 'success' }}
         continue-on-error: true
-        uses: rsyed94/tensile-action/node-test@a64eb2feaf04f8407498065120422e6ff30d33a4
+        uses: rsyed94/tensile-action/node-test@6b066ae7ea7bb376b7049fb7ef952b0fde0ba336
         with:
           step: collect
       - name: "Replay farm: send the coverage to Tensile"
