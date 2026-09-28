@@ -43,6 +43,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
+      id-token: write
 
     strategy:
       matrix:
@@ -86,10 +87,63 @@ jobs:
       - name: Install
         run: |
           npm install --ignore-scripts
-
+      - name: "Replay farm: fetch the PR base for Tensile"
+        if: ${{ github.event_name == 'pull_request' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
+            git fetch --no-tags --quiet --depth=100 origin "$BASE" "$GITHUB_SHA"
+          fi
+      - name: Tensile selection (shadow)
+        id: tensile
+        uses: rsyed94/tensile-action@a64eb2feaf04f8407498065120422e6ff30d33a4
+        continue-on-error: true
+        with:
+          phase: select
+          mode: shadow
+          runner: node-test
+          test-paths: test/
+          service-url: https://jiffy-app-production.up.railway.app
+          check-run-id: ${{ job.check_run_id }}
+          matrix-key: ${{ toJSON(matrix) }}
+          test-step: Run tests
+          report: .jiffy/report-node-test.json
+      - name: Tensile node:test recorder
+        id: tensile-record
+        if: ${{ github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (matrix.node-version == 24) }}
+        continue-on-error: true
+        uses: rsyed94/tensile-action/node-test@a64eb2feaf04f8407498065120422e6ff30d33a4
+        with:
+          step: setup
       - name: Run tests
         run: |
           npm run unit
+        env:
+          NODE_OPTIONS: ${{ steps.tensile-record.outputs.node-options || env.NODE_OPTIONS }}
+      - name: Tensile node:test collect
+        if: ${{ !cancelled() && steps.tensile-record.outcome == 'success' }}
+        continue-on-error: true
+        uses: rsyed94/tensile-action/node-test@a64eb2feaf04f8407498065120422e6ff30d33a4
+        with:
+          step: collect
+      - name: "Replay farm: send the coverage to Tensile"
+        if: ${{ success() && steps.tensile-record.outcome == 'success' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          SERVER: https://jiffy-app-production.up.railway.app
+          PART: test-unit-node-test
+        run: |
+          set -euo pipefail
+          [ -s .jiffy/coverage-node-test.json ] || { echo "::warning::no node:test coverage to send"; exit 0; }
+          token=$(curl -sSf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=jiffy" | jq -r .value)
+          echo "::add-mask::$token"
+          put() { curl -sS --fail-with-body -X PUT -H "Authorization: Bearer $token" -H "content-type: application/json" --data-binary @"$1" "$SERVER/v1/maps/$GITHUB_REPOSITORY/$GITHUB_SHA/$2/$3"; echo; }
+          put .jiffy/coverage-node-test.json parts "$PART"
+          [ ! -s .jiffy/report-node-test.json ] || put .jiffy/report-node-test.json durations "$PART-report"
 
   test-types:
     needs:
